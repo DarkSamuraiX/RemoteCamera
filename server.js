@@ -1,4 +1,5 @@
 // server.js — Socket.IO v4.8.1 (Node.js)
+const { v4: uuidv4 } = require('uuid');
 
 const express = require("express");
 const http = require("http");
@@ -16,23 +17,41 @@ const io = new Server(server, {
 });
 
 io.on('connection', (socket) => {
-  console.log('📱 Phone Connected', socket.id);
+  const clientId = uuidv4();
+  console.log(`🔗 Client connected: ${clientId}`);
+  socket.join(clientId);
 
-   socket.on('command', (cmd) => {
-  console.log('🖥️ Command received:', cmd);
-  io.emit(cmd); // broadcast to all phones
-});
-
-  socket.on('camera_frame', (data) => {
-    // broadcast frame to viewers
-    io.emit('camera_frame', data);
+  // Keep track of whether this client is a phone or a browser
+  socket.on('register', (type) => {
+    socket.data.type = type; // 'phone' or 'viewer'
+    console.log(`📍 ${clientId} registered as ${type}`);
   });
 
+  // ----- WebRTC signaling -----
+  socket.on('offer', (data) => {
+    console.log('📨 Offer from phone');
+    socket.broadcast.emit('offer', data);
+  });
+
+  socket.on('answer', (data) => {
+    console.log('📨 Answer from viewer');
+    socket.broadcast.emit('answer', data);
+  });
+
+  socket.on('ice-candidate', (candidate) => {
+    socket.broadcast.emit('ice-candidate', candidate);
+  });
+
+  // ----- Camera commands (same as before) -----
+  socket.on('command', (cmd) => {
+    console.log('🖥️ Command received:', cmd);
+    io.emit(cmd); // broadcast to phones
+  });
 
   socket.on('disconnect', () => {
-    console.log('📴 Disconnected Phone', socket.id);
+    console.log(`❌ Client disconnected: ${clientId}`);
   });
-})
+});
 // שליחת פקודת הפעלת מצלמה
 app.get("/start", (req, res) => {
   io.emit("start_camera");
