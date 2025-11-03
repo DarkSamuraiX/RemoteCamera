@@ -1,5 +1,6 @@
 // server.js — Socket.IO v4.8.1 (Node.js)
 const { v4: uuidv4 } = require('uuid');
+require('dotenv').config();
 
 const express = require("express");
 const http = require("http");
@@ -8,6 +9,7 @@ const { Server } = require("socket.io");
 const app = express();
 app.use(express.static('public'));
 const server = http.createServer(app);
+const ACCESS_KEY = process.env.ACCESS_KEY;
 
 const io = new Server(server, {
   cors: {
@@ -20,6 +22,18 @@ io.on('connection', (socket) => {
   const clientId = uuidv4();
   console.log(`🔗 Client connected: ${clientId}`);
   socket.join(clientId);
+
+
+  socket.on('auth', (key) => {
+  if (key !== ACCESS_KEY) {
+    console.log('❌ Unauthorized connection attempt');
+    socket.emit('auth_error', 'Unauthorized');
+    socket.disconnect(true);
+    return;
+  }
+  console.log('🔑 Authorized connection');
+  socket.emit('auth_success');
+});
 
   // Keep track of whether this client is a phone or a browser
   socket.on('register', (type) => {

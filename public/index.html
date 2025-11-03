@@ -134,7 +134,24 @@
     const status = document.getElementById('status');
     const video = document.getElementById('remoteVideo');
 
-    socket.emit('register', 'viewer');
+     // === 🔐 AUTHENTICATION ===
+    const ACCESS_KEY = prompt('Enter Access Key:'); // simple prompt for now
+    socket.emit('auth', ACCESS_KEY);
+
+    socket.on('auth_success', () => {
+      console.log('🔐 Auth success');
+      socket.emit('register', 'viewer');
+      status.textContent = '🟢 Authorized & connected';
+      status.style.color = '#0f0';
+    });
+
+    socket.on('auth_error', (msg) => {
+      alert('❌ Access denied');
+      status.textContent = '🔴 Unauthorized';
+      status.style.color = '#f33';
+      socket.disconnect();
+    });
+
 
     socket.on('connect', () => {
       status.textContent = '🟢 Connected to server';
