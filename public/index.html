@@ -1,70 +1,156 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Remote Camera Dashboard</title>
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <style>
+    :root {
+      --bg: #0d0d0d;
+      --panel: #1c1c1e;
+      --accent: #0d6efd;
+      --accent-hover: #0b5ed7;
+      --text: #fff;
+      --muted: #aaa;
+    }
+
     body {
-      background: #111;
-      color: white;
-      font-family: sans-serif;
-      text-align: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Roboto, sans-serif;
       margin: 0;
       padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
     }
-    #controls { margin-top: 20px; }
-    button {
-      padding: 12px 24px;
-      font-size: 16px;
-      margin: 5px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
+
+    header {
+      width: 100%;
+      text-align: center;
+      padding: 20px 0 10px;
+      background: #111;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
     }
-    video {
-      width: 90%;
-      max-width: 600px;
+
+    h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    #status {
+      margin-top: 10px;
+      font-size: 1rem;
+      color: var(--muted);
+    }
+
+    #controls {
+      background: var(--panel);
+      margin-top: 25px;
+      padding: 20px 30px;
       border-radius: 12px;
-      margin-top: 30px;
-      background: black;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      box-shadow: 0 0 15px rgba(0,0,0,0.4);
+    }
+
+    button {
+      background: var(--accent);
+      color: var(--text);
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      padding: 12px 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: var(--accent-hover);
+    }
+
+    button.danger {
+      background: #dc3545;
+    }
+
+    button.danger:hover {
+      background: #b02a37;
+    }
+
+    #videoContainer {
+      margin-top: 40px;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    video {
+      width: 480px; /* smaller, crisp view */
+      max-width: 90vw;
+      height: auto; /* keeps aspect ratio */
+      border-radius: 12px;
+    }
+
+    footer {
+      margin-top: auto;
+      padding: 15px;
+      color: var(--muted);
+      font-size: 0.85rem;
     }
   </style>
 </head>
 <body>
-  <h1>Remote Camera Dashboard</h1>
+  <header>
+    <h1>Remote Camera Dashboard</h1>
+    <div id="status">Connecting...</div>
+  </header>
 
   <div id="controls">
     <button id="openBtn">📷 Open Camera</button>
-    <button id="closeBtn">🚫 Close Camera</button>
+    <button id="closeBtn" class="danger">🚫 Close Camera</button>
   </div>
 
-  <div id="status">Connecting...</div>
-  <video id="remoteVideo" autoplay playsinline></video>
+  <div id="videoContainer">
+    <video id="remoteVideo" autoplay playsinline></video>
+  </div>
+
+  <footer>
+    <p>Connected remotely via Socket.IO + WebRTC</p>
+  </footer>
 
   <script>
-    const socket = io();  // connect to same origin
+    const socket = io(); // same-origin
     const status = document.getElementById('status');
     const video = document.getElementById('remoteVideo');
 
     socket.emit('register', 'viewer');
 
     socket.on('connect', () => {
-      status.innerText = '🟢 Connected to server';
+      status.textContent = '🟢 Connected to server';
+      status.style.color = '#0f0';
     });
 
     socket.on('disconnect', () => {
-      status.innerText = '🔴 Disconnected';
+      status.textContent = '🔴 Disconnected';
+      status.style.color = '#f33';
     });
 
-    // --- Buttons ---
-    document.getElementById('openBtn').onclick = () => {
-      socket.emit('command', 'start_camera');
-    };
-    document.getElementById('closeBtn').onclick = () => {
-      socket.emit('command', 'stop_camera');
-    };
+    // === Buttons ===
+    document.getElementById('openBtn').onclick = () => socket.emit('command', 'start_camera');
+    document.getElementById('closeBtn').onclick = () => socket.emit('command', 'stop_camera');
 
-    // --- WebRTC setup ---
+    // === WebRTC ===
     let pc = null;
 
     socket.on('offer', async (offer) => {
@@ -80,16 +166,12 @@
       socket.emit('answer', answer);
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket.emit('ice-candidate', event.candidate);
-        }
+        if (event.candidate) socket.emit('ice-candidate', event.candidate);
       };
     });
 
     socket.on('ice-candidate', (candidate) => {
-      if (pc) {
-        pc.addIceCandidate(new RTCIceCandidate(candidate));
-      }
+      if (pc) pc.addIceCandidate(new RTCIceCandidate(candidate));
     });
   </script>
 </body>
