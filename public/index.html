@@ -1,34 +1,96 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Remote Camera Control</title>
+  <title>Remote Camera Dashboard</title>
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <style>
-    body { font-family: sans-serif; background: #121212; color: white; text-align: center; }
-    button { padding: 12px 24px; font-size: 16px; margin: 10px; border-radius: 8px; cursor: pointer; }
-    #status { margin-top: 20px; font-weight: bold; }
+    body {
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    #controls { margin-top: 20px; }
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      margin: 5px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+    video {
+      width: 90%;
+      max-width: 600px;
+      border-radius: 12px;
+      margin-top: 30px;
+      background: black;
+    }
   </style>
 </head>
 <body>
   <h1>Remote Camera Dashboard</h1>
-  <button id="openBtn">📷 Open Camera</button>
-  <button id="closeBtn">🚫 Close Camera</button>
+
+  <div id="controls">
+    <button id="openBtn">📷 Open Camera</button>
+    <button id="closeBtn">🚫 Close Camera</button>
+  </div>
+
   <div id="status">Connecting...</div>
+  <video id="remoteVideo" autoplay playsinline></video>
 
   <script>
-    const socket = io(); // same origin (Render)
+    const socket = io();  // connect to same origin
     const status = document.getElementById('status');
+    const video = document.getElementById('remoteVideo');
 
-    socket.on('connect', () => status.innerText = '🟢 Connected to server');
-    socket.on('disconnect', () => status.innerText = '🔴 Disconnected');
+    socket.emit('register', 'viewer');
 
+    socket.on('connect', () => {
+      status.innerText = '🟢 Connected to server';
+    });
+
+    socket.on('disconnect', () => {
+      status.innerText = '🔴 Disconnected';
+    });
+
+    // --- Buttons ---
     document.getElementById('openBtn').onclick = () => {
       socket.emit('command', 'start_camera');
     };
-
     document.getElementById('closeBtn').onclick = () => {
       socket.emit('command', 'stop_camera');
     };
+
+    // --- WebRTC setup ---
+    let pc = null;
+
+    socket.on('offer', async (offer) => {
+      console.log('📩 Offer received from phone');
+      pc = new RTCPeerConnection();
+      pc.ontrack = (event) => {
+        console.log('🎥 Receiving stream');
+        video.srcObject = event.streams[0];
+      };
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('answer', answer);
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('ice-candidate', event.candidate);
+        }
+      };
+    });
+
+    socket.on('ice-candidate', (candidate) => {
+      if (pc) {
+        pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    });
   </script>
 </body>
 </html>
