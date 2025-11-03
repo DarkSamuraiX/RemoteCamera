@@ -172,7 +172,16 @@
 
     socket.on('offer', async (offer) => {
       console.log('📩 Offer received from phone');
-      pc = new RTCPeerConnection();
+      pc = new RTCPeerConnection({
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      {
+        urls: 'turn:relay1.expressturn.com:3478',
+        username: 'efPHkdbFNh2eKRqVeb',
+        credential: '2rV9sQyDCaP9XgQf'
+      }
+    ]
+        });
       pc.ontrack = (event) => {
         console.log('🎥 Receiving stream');
         video.srcObject = event.streams[0];
