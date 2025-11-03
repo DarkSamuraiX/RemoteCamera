@@ -5,6 +5,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
+app.use(express.static('public'));
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -17,10 +18,16 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log('📱 Phone Connected', socket.id);
 
+   socket.on('command', (cmd) => {
+  console.log('🖥️ Command received:', cmd);
+  io.emit(cmd); // broadcast to all phones
+});
+
   socket.on('camera_frame', (data) => {
     // broadcast frame to viewers
     io.emit('camera_frame', data);
   });
+
 
   socket.on('disconnect', () => {
     console.log('📴 Disconnected Phone', socket.id);
@@ -32,7 +39,9 @@ app.get("/start", (req, res) => {
   res.send("📸 Camera Permission Sent!");
 });
 
-const PORT = 3000;
+
+
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server Running on  http://localhost:${PORT}`);
+  console.log(`Server Running on Port :${PORT}`);
 });

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Remote Camera Control</title>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #121212; color: white; text-align: center; }
+    button { padding: 12px 24px; font-size: 16px; margin: 10px; border-radius: 8px; cursor: pointer; }
+    #status { margin-top: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Remote Camera Dashboard</h1>
+  <button id="openBtn">📷 Open Camera</button>
+  <button id="closeBtn">🚫 Close Camera</button>
+  <div id="status">Connecting...</div>
+
+  <script>
+    const socket = io(); // same origin (Render)
+    const status = document.getElementById('status');
+
+    socket.on('connect', () => status.innerText = '🟢 Connected to server');
+    socket.on('disconnect', () => status.innerText = '🔴 Disconnected');
+
+    document.getElementById('openBtn').onclick = () => {
+      socket.emit('command', 'start_camera');
+    };
+
+    document.getElementById('closeBtn').onclick = () => {
+      socket.emit('command', 'stop_camera');
+    };
+  </script>
+</body>
+</html>
