@@ -1,4 +1,4 @@
-// server.js — Render compatible (keeping your public folder)
+// server.js — Socket.IO v4.8.1 (Node.js)
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
@@ -7,21 +7,9 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
+app.use(express.static('public'));
 const server = http.createServer(app);
 const ACCESS_KEY = process.env.ACCESS_KEY;
-
-// ✅ תיקון: ביטול ה־CSP של Render כדי שה־index.html יעבוד
-app.use((req, res, next) => {
-  res.removeHeader("Content-Security-Policy");
-  res.setHeader(
-    "Content-Security-Policy",
-    "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;"
-  );
-  next();
-});
-
-// 🟢 מגיש את כל הקבצים שלך בדיוק כמו שהיה
-app.use(express.static('public'));
 
 const io = new Server(server, {
   cors: {
@@ -30,58 +18,63 @@ const io = new Server(server, {
   },
 });
 
-let phoneSocket = null;
-
 io.on('connection', (socket) => {
   const clientId = uuidv4();
   console.log(`🔗 Client connected: ${clientId}`);
+  socket.join(clientId);
+
 
   socket.on('auth', (key) => {
-    if (key !== ACCESS_KEY) {
-      console.log('❌ Unauthorized connection attempt');
-      socket.emit('auth_error', 'Unauthorized');
-      socket.disconnect(true);
-      return;
-    }
-    console.log('🔑 Authorized connection');
-    socket.emit('auth_success');
-  });
+  if (key !== ACCESS_KEY) {
+    console.log('❌ Unauthorized connection attempt');
+    socket.emit('auth_error', 'Unauthorized');
+    socket.disconnect(true);
+    return;
+  }
+  console.log('🔑 Authorized connection');
+  socket.emit('auth_success');
+});
 
+  // Keep track of whether this client is a phone or a browser
   socket.on('register', (type) => {
-    socket.data.type = type;
+    socket.data.type = type; // 'phone' or 'viewer'
     console.log(`📍 ${clientId} registered as ${type}`);
-
-    if (type === "phone") {
-      phoneSocket = socket;
-    }
   });
 
-  // ----- WebRTC -----
+  // ----- WebRTC signaling -----
   socket.on('offer', (data) => {
     console.log('📨 Offer from phone');
     socket.broadcast.emit('offer', data);
   });
 
   socket.on('answer', (data) => {
-    console.log('📩 Answer from viewer');
-    if (phoneSocket) phoneSocket.emit('answer', data);
+    console.log('📨 Answer from viewer');
+    socket.broadcast.emit('answer', data);
   });
 
   socket.on('ice-candidate', (candidate) => {
-    if (socket.data.type === "phone") {
-      socket.broadcast.emit('ice-candidate', candidate);
-    } else {
-      if (phoneSocket) phoneSocket.emit('ice-candidate', candidate);
-    }
+    socket.broadcast.emit('ice-candidate', candidate);
+  });
+
+  // ----- Camera commands (same as before) -----
+  socket.on('command', (cmd) => {
+    console.log('🖥️ Command received:', cmd);
+    io.emit(cmd); // broadcast to phones
   });
 
   socket.on('disconnect', () => {
     console.log(`❌ Client disconnected: ${clientId}`);
-    if (socket === phoneSocket) phoneSocket = null;
   });
 });
+// שליחת פקודת הפעלת מצלמה
+app.get("/start", (req, res) => {
+  io.emit("start_camera");
+  res.send("📸 Camera Permission Sent!");
+});
+
+
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server Running on Port ${PORT}`);
+  console.log(`Server Running on Port :${PORT}`);
 });
