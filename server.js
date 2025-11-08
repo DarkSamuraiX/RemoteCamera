@@ -1,3 +1,4 @@
+// server.js — Render compatible (keeping your public folder)
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
@@ -9,8 +10,24 @@ const app = express();
 const server = http.createServer(app);
 const ACCESS_KEY = process.env.ACCESS_KEY;
 
+// ✅ תיקון: ביטול ה־CSP של Render כדי שה־index.html יעבוד
+app.use((req, res, next) => {
+  res.removeHeader("Content-Security-Policy");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;"
+  );
+  next();
+});
+
+// 🟢 מגיש את כל הקבצים שלך בדיוק כמו שהיה
+app.use(express.static('public'));
+
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
 });
 
 let phoneSocket = null;
@@ -39,7 +56,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ----- WebRTC signaling -----
+  // ----- WebRTC -----
   socket.on('offer', (data) => {
     console.log('📨 Offer from phone');
     socket.broadcast.emit('offer', data);
