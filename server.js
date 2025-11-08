@@ -23,23 +23,40 @@ io.on('connection', (socket) => {
   console.log(`🔗 Client connected: ${clientId}`);
   socket.join(clientId);
 
-
   socket.on('auth', (key) => {
-  if (key !== ACCESS_KEY) {
-    console.log('❌ Unauthorized connection attempt');
-    socket.emit('auth_error', 'Unauthorized');
-    socket.disconnect(true);
-    return;
-  }
-  console.log('🔑 Authorized connection');
-  socket.emit('auth_success');
-});
+    if (key !== ACCESS_KEY) {
+      console.log('❌ Unauthorized connection attempt');
+      socket.emit('auth_error', 'Unauthorized');
+      socket.disconnect(true);
+      return;
+    }
+    console.log('🔑 Authorized connection');
+    socket.emit('auth_success');
+  });
 
   // Keep track of whether this client is a phone or a browser
   socket.on('register', (type) => {
     socket.data.type = type; // 'phone' or 'viewer'
     console.log(`📍 ${clientId} registered as ${type}`);
   });
+
+  // ----- 🟢 Handle ping_alive from phone -----
+  let lastPing = null;
+
+  socket.on('ping_alive', () => {
+    lastPing = new Date();
+    console.log(`📶 Ping received from ${clientId} (${socket.data.type || "unknown"}) at ${lastPing.toLocaleTimeString()}`);
+  });
+
+  // Optional: notify if no ping for long time (2 minutes)
+  const pingMonitor = setInterval(() => {
+    if (lastPing) {
+      const diff = Date.now() - lastPing.getTime();
+      if (diff > 2 * 60 * 1000) { // 2 minutes
+        console.log(`⚠️ No ping from ${clientId} for ${(diff / 1000).toFixed(0)}s (possible offline)`);
+      }
+    }
+  }, 30 * 1000); // check every 30s
 
   // ----- WebRTC signaling -----
   socket.on('offer', (data) => {
@@ -56,7 +73,7 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('ice-candidate', candidate);
   });
 
-  // ----- Camera commands (same as before) -----
+  // ----- Camera commands -----
   socket.on('command', (cmd) => {
     console.log('🖥️ Command received:', cmd);
     io.emit(cmd); // broadcast to phones
@@ -64,15 +81,15 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`❌ Client disconnected: ${clientId}`);
+    clearInterval(pingMonitor);
   });
 });
+
 // שליחת פקודת הפעלת מצלמה
 app.get("/start", (req, res) => {
   io.emit("start_camera");
   res.send("📸 Camera Permission Sent!");
 });
-
-
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, "0.0.0.0", () => {
