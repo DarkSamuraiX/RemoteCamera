@@ -1,4 +1,3 @@
-// server.js — Socket.IO v4.8.1 (Node.js)
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
@@ -7,21 +6,18 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
-app.use(express.static('public'));
 const server = http.createServer(app);
 const ACCESS_KEY = process.env.ACCESS_KEY;
 
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
+
+let phoneSocket = null;
 
 io.on('connection', (socket) => {
   const clientId = uuidv4();
   console.log(`🔗 Client connected: ${clientId}`);
-  socket.join(clientId);
 
   socket.on('auth', (key) => {
     if (key !== ACCESS_KEY) {
@@ -34,29 +30,14 @@ io.on('connection', (socket) => {
     socket.emit('auth_success');
   });
 
-  // Keep track of whether this client is a phone or a browser
   socket.on('register', (type) => {
-    socket.data.type = type; // 'phone' or 'viewer'
+    socket.data.type = type;
     console.log(`📍 ${clientId} registered as ${type}`);
-  });
 
-  // ----- 🟢 Handle ping_alive from phone -----
-  let lastPing = null;
-
-  socket.on('ping_alive', () => {
-    lastPing = new Date();
-    console.log(`📶 Ping received from ${clientId} (${socket.data.type || "unknown"}) at ${lastPing.toLocaleTimeString()}`);
-  });
-
-  // Optional: notify if no ping for long time (2 minutes)
-  const pingMonitor = setInterval(() => {
-    if (lastPing) {
-      const diff = Date.now() - lastPing.getTime();
-      if (diff > 2 * 60 * 1000) { // 2 minutes
-        console.log(`⚠️ No ping from ${clientId} for ${(diff / 1000).toFixed(0)}s (possible offline)`);
-      }
+    if (type === "phone") {
+      phoneSocket = socket;
     }
-  }, 30 * 1000); // check every 30s
+  });
 
   // ----- WebRTC signaling -----
   socket.on('offer', (data) => {
@@ -65,33 +46,25 @@ io.on('connection', (socket) => {
   });
 
   socket.on('answer', (data) => {
-    console.log('📨 Answer from viewer');
-    socket.broadcast.emit('answer', data);
+    console.log('📩 Answer from viewer');
+    if (phoneSocket) phoneSocket.emit('answer', data);
   });
 
   socket.on('ice-candidate', (candidate) => {
-    socket.broadcast.emit('ice-candidate', candidate);
-  });
-
-  // ----- Camera commands -----
-  socket.on('command', (cmd) => {
-    console.log('🖥️ Command received:', cmd);
-    io.emit(cmd); // broadcast to phones
+    if (socket.data.type === "phone") {
+      socket.broadcast.emit('ice-candidate', candidate);
+    } else {
+      if (phoneSocket) phoneSocket.emit('ice-candidate', candidate);
+    }
   });
 
   socket.on('disconnect', () => {
     console.log(`❌ Client disconnected: ${clientId}`);
-    clearInterval(pingMonitor);
+    if (socket === phoneSocket) phoneSocket = null;
   });
-});
-
-// שליחת פקודת הפעלת מצלמה
-app.get("/start", (req, res) => {
-  io.emit("start_camera");
-  res.send("📸 Camera Permission Sent!");
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server Running on Port :${PORT}`);
+  console.log(`🚀 Server Running on Port ${PORT}`);
 });
